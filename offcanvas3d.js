@@ -1,8 +1,7 @@
-//== test edit starting fork to remove render scene and use a navigator
 import React, { Component } from "react";
 import {
   Dimensions,
-  Text,
+  Image,
   View,
   StyleSheet,
   Animated,
@@ -11,141 +10,81 @@ import {
   BackAndroid
 } from "react-native";
 
-class OffCanvas3D extends Component {
+import { Text } from "native-base";
+
+//## TODO: Sad to include app modules here, but don't want to refactor the off-canvas menu for my needs at this moment
+import { BackgroundImage } from "../../src/components";
+
+// validate props
+type Props = {
+  active: boolean,
+  onMenuItemPress: (index: number) => {},
+  //## TODO: consider a simple default version that toggle's the menu visibility internally
+  //## TODO: while leaving the hook for advanced toggle behaviors (or emit a toggle event)
+  toggleMenu: () => {},
+  menuItems: [],
+  backgroundColor: string,
+  menuTextStyles: {},
+  handleBackPress: boolean,
+  //-- following props affect visualization of the menu revealing
+  animationDuration: number,
+  //## TODO: consider having which side be configurable
+  leftOffsetInPixels: number,
+  perspective: number,
+  rotationInDegrees: number,
+  scaleInDecimalPercent: number,
+  renderItem: { title: string, route: string, icon: React$Element }
+};
+
+class OffCanvas3D extends Component<Props> {
   constructor(props) {
     super(props);
 
     this._hardwareBackHandler = this._hardwareBackHandler.bind(this);
 
+    const stagArrNew = [];
+    for (let i = 0; i < this.props.menuItems.length; i++) stagArrNew.push(i);
+
+    const animatedStagArrNew = [];
+    stagArrNew.forEach(value => {
+      animatedStagArrNew[value] = new Animated.Value(0);
+    });
+
     this.state = {
       activityLeftPos: new Animated.Value(0),
       scaleSize: new Animated.Value(1.0),
       rotate: new Animated.Value(0),
-      animationDuration: 400,
-      stagArr: [],
-      animatedStagArr: [],
-      menuItems: this.props.menuItems,
-      activeMenu: 0
+      animationDuration: this.props.animationDuration,
+      stagArr: stagArrNew,
+      animatedStagArr: animatedStagArrNew,
+      menuItems: this.props.menuItems
     };
   }
 
-  // staggered animation configuration for menu items
-  componentDidMount() {
-    let stagArrNew = [];
-    for (let i = 0; i < this.state.menuItems.length; i++) stagArrNew.push(i);
-    this.setState({ stagArr: stagArrNew });
-
-    let animatedStagArrNew = [];
-    stagArrNew.forEach(value => {
-      animatedStagArrNew[value] = new Animated.Value(0);
-    });
-    this.setState({ animatedStagArr: animatedStagArrNew });
-  }
+  componentDidMount() {}
 
   // any update to component will fire the animation
   componentDidUpdate() {
     this._animateStuffs();
 
-    if (this.props.handleBackPress && this.props.active) {
-      BackAndroid.addEventListener(
-        "hardwareBackPress",
-        this._hardwareBackHandler
-      );
-    }
+    // //## TODO: BackAndroid deprecated BackHandler instead
+    // if(this.props.handleBackPress && this.props.active) {
+    //   BackAndroid.addEventListener('hardwareBackPress', this._hardwareBackHandler)
+    // }
 
-    if (this.props.handleBackPress && !this.props.active) {
-      BackAndroid.removeEventListener(
-        "hardwareBackPress",
-        this._hardwareBackHandler
-      );
-    }
-  }
-
-  render() {
-    const rotateVal = this.state.rotate.interpolate({
-      inputRange: [0, 1],
-      outputRange: ["0deg", "-10deg"]
-    });
-
-    const staggeredAnimatedMenus = this.state.stagArr.map(index => {
-      return (
-        <TouchableWithoutFeedback
-          key={index}
-          onPress={this._handlePress.bind(this, index)}
-          style={{ backgroundColor: "red" }}
-        >
-          <Animated.View
-            style={{
-              transform: [{ translateX: this.state.animatedStagArr[index] }]
-            }}
-          >
-            <View style={styles.menuItemContainer}>
-              {this.state.menuItems[index].icon}
-              <Text style={[styles.menuItem, { ...this.props.menuTextStyles }]}>
-                {this.state.menuItems[index].title}
-              </Text>
-            </View>
-          </Animated.View>
-        </TouchableWithoutFeedback>
-      );
-    });
-
-    return (
-      <View
-        style={[
-          styles.offCanvasContainer,
-          {
-            flex: 1,
-            backgroundColor: this.props.backgroundColor
-          }
-        ]}
-      >
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0
-          }}
-        >
-          <Animated.View style={styles.menuItemsContainer}>
-            {staggeredAnimatedMenus}
-          </Animated.View>
-        </ScrollView>
-
-        <Animated.View
-          onStartShouldSetResponder={() => true}
-          onResponderTerminationRequest={() => true}
-          onResponderRelease={evt => this._gestureControl(evt)}
-          style={[
-            styles.activityContainer,
-            {
-              flex: 1,
-              backgroundColor: this.props.backgroundColor,
-              transform: [
-                { translateX: this.state.activityLeftPos },
-                { scale: this.state.scaleSize },
-                { rotateY: rotateVal }
-              ]
-            }
-          ]}
-        >
-          {this.state.menuItems[this.state.activeMenu].renderScene}
-        </Animated.View>
-      </View>
-    );
+    // if(this.props.handleBackPress && !this.props.active) {
+    //   BackAndroid.removeEventListener('hardwareBackPress', this._hardwareBackHandler)
+    // }
   }
 
   // press on any menu item, render the respective scene
-  _handlePress(index) {
-    this.setState({ activeMenu: index });
-    this.props.onMenuPress();
+  _handleItemPress(index) {
+    //-- call back with the index of the menu item that was selected for external handling
+    this.props.onMenuItemPress(index);
   }
 
   _hardwareBackHandler() {
-    this.props.onMenuPress();
+    this.props.toggleMenu();
     return true;
   }
 
@@ -154,69 +93,219 @@ class OffCanvas3D extends Component {
     const { locationX, pageX } = evt.nativeEvent;
 
     if (!this.props.active) {
-      if (locationX < 40 && pageX > 100) this.props.onMenuPress();
-    } else {
-      if (pageX) this.props.onMenuPress();
+      if (locationX < 40 && pageX > 100) {
+        this.props.toggleMenu();
+      }
+    } else if (pageX) {
+      this.props.toggleMenu();
     }
   }
 
   // animate stuffs with hard coded values for fine tuning
   _animateStuffs() {
-    const activityLeftPos = this.props.active ? 150 : 0;
-    const scaleSize = this.props.active ? 0.8 : 1;
+    //## TODO: clean up this to and from logic pieces into cleaner divisions
+    //## TODO: most of these timings, could be set custom but they're largely related
+    //## TODO: and could define themselves relative to an overall setting
+    //## TODO: also the speed at which the menu items come or go matters on how many
+    //## TODO: there are (stagger adds up yo) and rendering size (too wide = probs too)
+    const activityLeftPos = this.props.active
+      ? this.props.leftOffsetInPixels
+      : 0;
+    const animScreenMoveDelay = this.props.active ? 0 : 100;
+    const animStaggerGap = this.props.active ? 25 : 0;
+    const scaleSize = this.props.active ? this.props.scaleInDecimalPercent : 1;
     const rotate = this.props.active ? 1 : 0;
-    const menuTranslateX = this.props.active ? 0 : -150;
+    const menuTranslateX = this.props.active
+      ? this.props.leftOffsetInPixels
+      : -1 * this.props.leftOffsetInPixels;
 
+    //## TODO: adjust os top nav color based on bg or explicitly adjust from props
+    //## TODO: (e.g.) white text over black or vice versa
     Animated.parallel([
       Animated.timing(this.state.activityLeftPos, {
+        delay: animScreenMoveDelay,
         toValue: activityLeftPos,
         duration: this.state.animationDuration
       }),
       Animated.timing(this.state.scaleSize, {
+        delay: animScreenMoveDelay,
         toValue: scaleSize,
         duration: this.state.animationDuration
       }),
       Animated.timing(this.state.rotate, {
+        delay: animScreenMoveDelay,
         toValue: rotate,
         duration: this.state.animationDuration
       }),
+      //## TODO: make all these timings optional
       Animated.stagger(
-        50,
+        animStaggerGap,
         this.state.stagArr.map(item => {
+          //-- delay the fly in time as a more pleasing animation with screen moving as well
           if (this.props.active) {
             return Animated.timing(this.state.animatedStagArr[item], {
               toValue: menuTranslateX,
               duration: this.state.animationDuration,
-              delay: 250
-            });
-          } else {
-            return Animated.timing(this.state.animatedStagArr[item], {
-              toValue: menuTranslateX,
-              duration: this.state.animationDuration,
-              delay: 400
+              delay: 50
             });
           }
+          //-- the returning animation needs to happen fast and before the screen comes sliding back into place
+          return Animated.timing(this.state.animatedStagArr[item], {
+            toValue: menuTranslateX,
+            duration: this.state.animationDuration,
+            delay: 0
+          });
         })
       )
     ]).start();
   }
-}
 
-// validate props
-OffCanvas3D.propTypes = {
-  active: React.PropTypes.bool.isRequired,
-  onMenuPress: React.PropTypes.func.isRequired,
-  menuItems: React.PropTypes.array.isRequired,
-  backgroundColor: React.PropTypes.string,
-  menuTextStyles: React.PropTypes.object,
-  handleBackPress: React.PropTypes.bool
-};
+  render() {
+    let rotateAsStr;
+    if (this.props.rotationInDegrees) {
+      rotateAsStr = `${this.props.rotationInDegrees}deg`;
+    } else {
+      rotateAsStr = "0deg";
+    }
+
+    const interpolatedRotateVal = this.state.rotate.interpolate({
+      inputRange: [0, 1],
+      outputRange: ["0deg", rotateAsStr]
+    });
+    const staggeredAnimatedMenus = this.state.stagArr.map(index => {
+      const currItem = this.state.menuItems[index];
+      let toRender;
+      if (currItem.separator) {
+        toRender = (
+          <Animated.View
+            key={`${index}_SeparatorKey`}
+            style={{
+              borderBottomColor: "#E0E0E0",
+              borderBottomWidth: StyleSheet.hairlineWidth,
+              left: -1 * this.props.leftOffsetInPixels,
+              //## TODO: maybe make a padding or define a menu width for this value (each menu item is its own currently)
+              marginLeft: 20,
+              marginRight: 20,
+              width: this.props.separatorWidth,
+              transform: [{ translateX: this.state.animatedStagArr[index] }]
+            }}
+          />
+        );
+      } else {
+        toRender = (
+          <Animated.View
+            key={`${currItem.title}_Key`}
+            style={{
+              left: -1 * this.props.leftOffsetInPixels,
+              transform: [{ translateX: this.state.animatedStagArr[index] }]
+            }}
+          >
+            {
+              //## TODO: clean up this bind without causing infinite recursive rendering :/ or always re rendering arrow functions
+            }
+            <TouchableWithoutFeedback
+              key={index}
+              onPress={this._handleItemPress.bind(this, index)}
+            >
+              {this.props.renderItem(currItem)}
+            </TouchableWithoutFeedback>
+          </Animated.View>
+        );
+      }
+      return toRender;
+    });
+
+    return (
+      <View
+        style={[
+          {
+            flex: 1
+          },
+          this.props.offCanvasContainerStyle
+        ]}
+      >
+        {/* //## TODO: really need to make this off-canvas module work friendlier with any GUI customizations instead of this tight integration */}
+        <BackgroundImage type="color" />
+        <View style={{ flex: 1 }}>
+          {
+            // This scroll view is the animated menu list
+          }
+          {
+            //## TODO: get abackground image to work here
+            // <Image
+            //   source={this.props.backgroundImage}
+            //   style={{
+            //     ...StyleSheet.absoluteFillObject,
+            //     resizeMode: 'cover',
+            //   }}
+            // >
+            //   <ScrollView
+            //     showsVerticalScrollIndicator={false}
+            //     style={{
+            //       ...StyleSheet.absoluteFillObject,
+            //     }}
+            //   >
+            //     <Animated.View style={styles.menuItemsContainer}>
+            //       {staggeredAnimatedMenus}
+            //     </Animated.View>
+            //   </ScrollView>
+            // </Image>
+          }
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            style={{
+              ...StyleSheet.absoluteFillObject
+            }}
+          >
+            <Animated.View style={styles.menuItemsContainer}>
+              {staggeredAnimatedMenus}
+            </Animated.View>
+          </ScrollView>
+
+          {
+            // This animated container holds the children and is rotated away
+            //## TODO: these responders interfere with the scroll views in the children collection (scrollable lists don't work)...
+            //## TODO: lockout clicking on the children controls while menu is exposed (or make that close the menu)
+            //## TODO: allow drag to close the menu
+            // <Animated.View
+            // onStartShouldSetResponder={() => true}
+            // onResponderTerminationRequest={() => true}
+            // onResponderRelease={evt => this._gestureControl(evt)}
+          }
+          <Animated.View
+            style={[
+              styles.activityContainer,
+              {
+                flex: 1,
+                backgroundColor: this.props.backgroundColor,
+                transform: [
+                  { perspective: this.props.perspective },
+                  { translateX: this.state.activityLeftPos },
+                  { scale: this.state.scaleSize },
+                  { rotateY: interpolatedRotateVal }
+                ]
+              }
+            ]}
+          >
+            {this.props.children}
+          </Animated.View>
+        </View>
+      </View>
+    );
+  }
+}
 
 // set default props
 OffCanvas3D.defaultProps = {
   backgroundColor: "#222222",
   menuTextStyles: { color: "white" },
-  handleBackPress: true
+  handleBackPress: true,
+  animationDuration: 400,
+  perspective: 200,
+  scaleInDecimalPercent: 0.9,
+  rotationInDegrees: -20,
+  leftOffsetInPixels: 100,
+  separatorWidth: 200
 };
 
 export default OffCanvas3D;
