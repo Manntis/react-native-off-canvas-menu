@@ -37,6 +37,11 @@ type Props = {
 };
 
 class OffCanvas3D extends Component<Props> {
+  activityLeftPos = new Animated.Value(0);
+  scaleSize = new Animated.Value(1.0);
+  rotate = new Animated.Value(0);
+  animatedStagArr = [];
+
   constructor(props) {
     super(props);
 
@@ -51,14 +56,16 @@ class OffCanvas3D extends Component<Props> {
     });
 
     this.state = {
-      activityLeftPos: new Animated.Value(0),
-      scaleSize: new Animated.Value(1.0),
-      rotate: new Animated.Value(0),
       animationDuration: this.props.animationDuration,
       stagArr: stagArrNew,
-      animatedStagArr: animatedStagArrNew,
       menuItems: this.props.menuItems
     };
+
+    //-- put animated values locally instead of in state, in state forces too many re renders when animating can be done natively
+    this.activityLeftPos = new Animated.Value(0);
+    this.scaleSize = new Animated.Value(1.0);
+    this.rotate = new Animated.Value(0);
+    this.animatedStagArr = animatedStagArrNew;
   }
 
   componentDidMount() {}
@@ -66,6 +73,7 @@ class OffCanvas3D extends Component<Props> {
   // any update to component will fire the animation
   componentDidUpdate() {
     this._animateStuffs();
+    //## TODO: rebuild stagArr as needed and synchronize with animatedStagArr like done in constructor
 
     // //## TODO: BackAndroid deprecated BackHandler instead
     // if(this.props.handleBackPress && this.props.active) {
@@ -122,20 +130,20 @@ class OffCanvas3D extends Component<Props> {
     //## TODO: adjust os top nav color based on bg or explicitly adjust from props
     //## TODO: (e.g.) white text over black or vice versa
     Animated.parallel([
-      Animated.timing(this.state.activityLeftPos, {
+      Animated.timing(this.activityLeftPos, {
         delay: animScreenMoveDelay,
         toValue: activityLeftPos,
-        duration: this.state.animationDuration
+        duration: this.animationDuration
       }),
-      Animated.timing(this.state.scaleSize, {
+      Animated.timing(this.scaleSize, {
         delay: animScreenMoveDelay,
         toValue: scaleSize,
-        duration: this.state.animationDuration
+        duration: this.animationDuration
       }),
-      Animated.timing(this.state.rotate, {
+      Animated.timing(this.rotate, {
         delay: animScreenMoveDelay,
         toValue: rotate,
-        duration: this.state.animationDuration
+        duration: this.animationDuration
       }),
       //## TODO: make all these timings optional
       Animated.stagger(
@@ -143,16 +151,16 @@ class OffCanvas3D extends Component<Props> {
         this.state.stagArr.map(item => {
           //-- delay the fly in time as a more pleasing animation with screen moving as well
           if (this.props.active) {
-            return Animated.timing(this.state.animatedStagArr[item], {
+            return Animated.timing(this.animatedStagArr[item], {
               toValue: menuTranslateX,
-              duration: this.state.animationDuration,
+              duration: this.animationDuration,
               delay: 50
             });
           }
           //-- the returning animation needs to happen fast and before the screen comes sliding back into place
-          return Animated.timing(this.state.animatedStagArr[item], {
+          return Animated.timing(this.animatedStagArr[item], {
             toValue: menuTranslateX,
-            duration: this.state.animationDuration,
+            duration: this.animationDuration,
             delay: 0
           });
         })
@@ -168,7 +176,7 @@ class OffCanvas3D extends Component<Props> {
       rotateAsStr = "0deg";
     }
 
-    const interpolatedRotateVal = this.state.rotate.interpolate({
+    const interpolatedRotateVal = this.rotate.interpolate({
       inputRange: [0, 1],
       outputRange: ["0deg", rotateAsStr]
     });
@@ -187,7 +195,7 @@ class OffCanvas3D extends Component<Props> {
               marginLeft: 20,
               marginRight: 20,
               width: this.props.separatorWidth,
-              transform: [{ translateX: this.state.animatedStagArr[index] }]
+              transform: [{ translateX: this.animatedStagArr[index] }]
             }}
           />
         );
@@ -197,7 +205,7 @@ class OffCanvas3D extends Component<Props> {
             key={`${currItem.title}_Key`}
             style={{
               left: -1 * this.props.leftOffsetInPixels,
-              transform: [{ translateX: this.state.animatedStagArr[index] }]
+              transform: [{ translateX: this.animatedStagArr[index] }]
             }}
           >
             {
@@ -280,8 +288,8 @@ class OffCanvas3D extends Component<Props> {
                 backgroundColor: this.props.backgroundColor,
                 transform: [
                   { perspective: this.props.perspective },
-                  { translateX: this.state.activityLeftPos },
-                  { scale: this.state.scaleSize },
+                  { translateX: this.activityLeftPos },
+                  { scale: this.scaleSize },
                   { rotateY: interpolatedRotateVal }
                 ]
               }
